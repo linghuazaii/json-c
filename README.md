@@ -1,6 +1,10 @@
 `json-c`                       {#mainpage}
 ========
 
+Note
+====
+This is for internal use, add support for `uint32_t` and `uint64_t`.
+
 JSON-C - A JSON implementation in C
 -----------------------------------
 
