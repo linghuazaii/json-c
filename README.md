@@ -3,7 +3,7 @@
 
 Note
 ====
-This is for internal use, add support for `uint32_t` and `uint64_t`.
+This is for personal use, add support for `uint32_t` and `uint64_t`.
 
 JSON-C - A JSON implementation in C
 -----------------------------------
