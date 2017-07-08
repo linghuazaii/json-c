@@ -51,6 +51,7 @@ static json_object_to_json_string_fn json_object_object_to_json_string;
 static json_object_to_json_string_fn json_object_boolean_to_json_string;
 static json_object_to_json_string_fn json_object_double_to_json_string_default;
 static json_object_to_json_string_fn json_object_int_to_json_string;
+static json_object_to_json_string_fn json_object_uint_to_json_string;
 static json_object_to_json_string_fn json_object_string_to_json_string;
 static json_object_to_json_string_fn json_object_array_to_json_string;
 
@@ -281,6 +282,9 @@ void json_object_set_serializer(json_object *jso,
 		case json_type_int:
 			jso->_to_json_string = &json_object_int_to_json_string;
 			break;
+        case json_type_uint:
+            jso->_to_json_string = &json_object_uint_to_json_string;
+            break;
 		case json_type_object:
 			jso->_to_json_string = &json_object_object_to_json_string;
 			break;
@@ -563,6 +567,7 @@ json_bool json_object_get_boolean(const struct json_object *jso)
 	case json_type_boolean:
 		return jso->o.c_boolean;
 	case json_type_int:
+    case json_type_uint:
 		return (jso->o.c_int64 != 0);
 	case json_type_double:
 		return (jso->o.c_double != 0);
@@ -594,12 +599,35 @@ static int json_object_int_to_json_string(struct json_object* jso,
 	return printbuf_memappend (pb, sbuf, strlen(sbuf));
 }
 
+/* json_object_uint */
+
+static int json_object_uint_to_json_string(struct json_object* jso,
+					  struct printbuf *pb,
+					  int level,
+					  int flags)
+{
+	/* room for 19 digits, the sign char, and a null term */
+	static char sbuf[21];
+	snprintf(sbuf, sizeof(sbuf), "%" PRIu64, jso->o.c_int64);
+	return printbuf_memappend (pb, sbuf, strlen(sbuf));
+}
+
 struct json_object* json_object_new_int(int32_t i)
 {
 	struct json_object *jso = json_object_new(json_type_int);
 	if (!jso)
 		return NULL;
 	jso->_to_json_string = &json_object_int_to_json_string;
+	jso->o.c_int64 = i;
+	return jso;
+}
+
+struct json_object* json_object_new_uint(uint32_t i)
+{
+	struct json_object *jso = json_object_new(json_type_uint);
+	if (!jso)
+		return NULL;
+	jso->_to_json_string = &json_object_uint_to_json_string;
 	jso->o.c_int64 = i;
 	return jso;
 }
@@ -633,6 +661,10 @@ int32_t json_object_get_int(const struct json_object *jso)
 	if (cint64 >= INT32_MAX)
 		return INT32_MAX;
 	return (int32_t) cint64;
+  case json_type_uint:
+    if ((uint64_t)cint64 >= INT32_MAX)
+        return INT32_MAX;
+    return (int32_t) cint64;
   case json_type_double:
     return (int32_t)jso->o.c_double;
   case json_type_boolean:
@@ -642,8 +674,54 @@ int32_t json_object_get_int(const struct json_object *jso)
   }
 }
 
+uint32_t json_object_get_uint(const struct json_object *jso)
+{
+	uint64_t cint;
+
+	if (!jso)
+		return 0;
+	switch(jso->o_type)
+	{
+	case json_type_int:
+        if (jso->o.c_int64 <= 0)
+            return 0;
+        if (jso->o.c_int64 >= UINT32_MAX)
+            return UINT32_MAX;
+        return (uint32_t)jso->o.c_int64;
+    case json_type_uint:
+        if ((uint64_t)jso->o.c_int64 >= UINT32_MAX)
+            return UINT32_MAX;
+		return (uint32_t)jso->o.c_int64;
+	case json_type_double:
+        if (jso->o.c_double <= 0.0)
+            return 0;
+        if ((uint64_t)jso->o.c_double >= UINT32_MAX)
+            return UINT32_MAX;
+		return (uint32_t)jso->o.c_double;
+	case json_type_boolean:
+		return jso->o.c_boolean;
+	case json_type_string:
+		if (json_parse_uint64(get_string_component(jso), &cint) == 0) {
+            if (cint >= UINT32_MAX)
+                return UINT32_MAX;
+			return cint;
+        }
+		/* FALLTHRU */
+	default:
+		return 0;
+	}
+}
+
 int json_object_set_int(struct json_object *jso,int new_value){
 	if (!jso || jso->o_type!=json_type_int)
+		return 0;
+	jso->o.c_int64=new_value;
+	return 1;
+}
+
+
+int json_object_set_uint(struct json_object *jso,uint32_t new_value){
+	if (!jso || jso->o_type!=json_type_uint)
 		return 0;
 	jso->o.c_int64=new_value;
 	return 1;
@@ -660,6 +738,16 @@ struct json_object* json_object_new_int64(int64_t i)
 	return jso;
 }
 
+struct json_object* json_object_new_uint64(uint64_t i)
+{
+	struct json_object *jso = json_object_new(json_type_uint);
+	if (!jso)
+		return NULL;
+	jso->_to_json_string = &json_object_uint_to_json_string;
+	jso->o.c_int64 = i;
+	return jso;
+}
+
 int64_t json_object_get_int64(const struct json_object *jso)
 {
 	int64_t cint;
@@ -670,6 +758,10 @@ int64_t json_object_get_int64(const struct json_object *jso)
 	{
 	case json_type_int:
 		return jso->o.c_int64;
+    case json_type_uint:
+        if ((uint64_t)jso->o.c_int64 > INT64_MAX)
+            return INT64_MAX;
+        return jso->o.c_int64;
 	case json_type_double:
 		return (int64_t)jso->o.c_double;
 	case json_type_boolean:
@@ -683,8 +775,44 @@ int64_t json_object_get_int64(const struct json_object *jso)
 	}
 }
 
+uint64_t json_object_get_uint64(const struct json_object *jso)
+{
+	uint64_t cint;
+
+	if (!jso)
+		return 0;
+	switch(jso->o_type)
+	{
+	case json_type_int:
+        if (jso->o.c_int64 <= 0)
+            return 0;
+        return (uint64_t)jso->o.c_int64;
+    case json_type_uint:
+		return (uint64_t)jso->o.c_int64;
+	case json_type_double:
+        if (jso->o.c_double <= 0.0)
+            return 0;
+		return (uint64_t)jso->o.c_double;
+	case json_type_boolean:
+		return jso->o.c_boolean;
+	case json_type_string:
+		if (json_parse_uint64(get_string_component(jso), &cint) == 0)
+			return cint;
+		/* FALLTHRU */
+	default:
+		return 0;
+	}
+}
+
 int json_object_set_int64(struct json_object *jso,int64_t new_value){
 	if (!jso || jso->o_type!=json_type_int)
+		return 0;
+	jso->o.c_int64=new_value;
+	return 1;
+}
+
+int json_object_set_uint64(struct json_object *jso,uint64_t new_value){
+	if (!jso || jso->o_type!=json_type_uint)
 		return 0;
 	jso->o.c_int64=new_value;
 	return 1;
@@ -877,6 +1005,10 @@ double json_object_get_double(const struct json_object *jso)
     return jso->o.c_double;
   case json_type_int:
     return jso->o.c_int64;
+  case json_type_uint:
+    if ((uint64_t)jso->o.c_int64 >= INT64_MAX)
+        return (double)INT64_MAX;
+    return (double)jso->o.c_int64;
   case json_type_boolean:
     return jso->o.c_boolean;
   case json_type_string:
@@ -1241,6 +1373,7 @@ int json_object_equal(struct json_object* jso1, struct json_object* jso2)
 			return (jso1->o.c_double == jso2->o.c_double);
 
 		case json_type_int:
+        case json_type_uint:
 			return (jso1->o.c_int64 == jso2->o.c_int64);
 
 		case json_type_string:

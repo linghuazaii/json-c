@@ -163,6 +163,7 @@ typedef enum json_type {
   json_type_boolean,
   json_type_double,
   json_type_int,
+  json_type_uint,
   json_type_object,
   json_type_array,
   json_type_string
@@ -661,10 +662,26 @@ extern struct json_object* json_object_new_int(int32_t i);
 
 
 /** Create a new empty json_object of type json_type_int
+ * Note that values are stored as 64-bit values internally.
+ * To ensure the full range is maintained, use json_object_new_uint64 instead.
+ * @param i the integer
+ * @returns a json_object of type json_type_int
+ */
+extern struct json_object* json_object_new_uint(uint32_t i);
+
+
+/** Create a new empty json_object of type json_type_int
  * @param i the integer
  * @returns a json_object of type json_type_int
  */
 extern struct json_object* json_object_new_int64(int64_t i);
+
+
+/** Create a new empty json_object of type json_type_uint
+ * @param i the integer
+ * @returns a json_object of type json_type_uint
+ */
+extern struct json_object* json_object_new_uint64(uint64_t i);
 
 
 /** Get the int value of a json_object
@@ -682,6 +699,22 @@ extern struct json_object* json_object_new_int64(int64_t i);
  * @returns an int
  */
 extern int32_t json_object_get_int(const struct json_object *obj);
+
+/** Get the int value of a json_object
+ *
+ * The type is coerced to a int if the passed object is not a int.
+ * double objects will return their integer conversion. Strings will be
+ * parsed as an integer. If no conversion exists then 0 is returned
+ * and errno is set to EINVAL. null is equivalent to 0 (no error values set)
+ *
+ * Note that integers are stored internally as 64-bit values.
+ * If the value of too big or too small to fit into 32-bit, UINT32_MAX or
+ * 0 are returned, respectively.
+ *
+ * @param obj the json_object instance
+ * @returns an int
+ */
+extern uint32_t json_object_get_uint(const struct json_object *obj);
 
 /** Set the int value of a json_object
  * 
@@ -712,6 +745,22 @@ extern int json_object_set_int(struct json_object *obj,int new_value);
 extern int64_t json_object_get_int64(const struct json_object *obj);
 
 
+/** Get the int value of a json_object
+ *
+ * The type is coerced to a int64 if the passed object is not a int64.
+ * double objects will return their int64 conversion. Strings will be
+ * parsed as an int64. If no conversion exists then 0 is returned.
+ *
+ * NOTE: Set errno to 0 directly before a call to this function to determine
+ * whether or not conversion was successful (it does not clear the value for
+ * you).
+ *
+ * @param obj the json_object instance
+ * @returns an uint64
+ */
+extern uint64_t json_object_get_uint64(const struct json_object *obj);
+
+
 /** Set the int64_t value of a json_object
  * 
  * The type of obj is checked to be a json_type_int and 0 is returned 
@@ -723,6 +772,19 @@ extern int64_t json_object_get_int64(const struct json_object *obj);
  * @returns 1 if value is set correctly, 0 otherwise
  */
 extern int json_object_set_int64(struct json_object *obj,int64_t new_value);
+
+
+/** Set the uint64_t value of a json_object
+ * 
+ * The type of obj is checked to be a json_type_int and 0 is returned 
+ * if it is not without any further actions. If type of obj is json_type_int
+ * the obect value is chaned to new_value
+ *
+ * @param obj the json_object instance
+ * @param new_value the value to be set
+ * @returns 1 if value is set correctly, 0 otherwise
+ */
+extern int json_object_set_uint64(struct json_object *obj,uint64_t new_value);
 
 
 /* double type methods */

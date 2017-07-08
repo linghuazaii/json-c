@@ -310,6 +310,95 @@ int json_parse_int64(const char *buf, int64_t *retval)
 	return 0;
 }
 
+int json_parse_uint64(const char *buf, uint64_t *retval)
+{
+	uint64_t num64;
+	const char *buf_sig_digits;
+	int orig_has_neg;
+	int saved_errno;
+
+	if (!sscanf_is_broken_testdone)
+	{
+		sscanf_is_broken_test();
+		sscanf_is_broken_testdone = 1;
+	}
+
+	// Skip leading spaces
+	while (isspace((int)*buf) && *buf)
+		buf++;
+
+    if (*buf == '-') {
+        *retval = 0;
+        return 0;
+    }
+
+	errno = 0; // sscanf won't always set errno, so initialize
+	if (sscanf(buf, "%" SCNu64, &num64) != 1)
+	{
+		MC_DEBUG("Failed to parse, sscanf != 1\n");
+		return 1;
+	}
+
+	saved_errno = errno;
+	buf_sig_digits = buf;
+	orig_has_neg = 0;
+	if (*buf_sig_digits == '-')
+	{
+        *retval = 0;
+        return 0;
+	}
+
+	// Not all sscanf implementations actually work
+	if (sscanf_is_broken && saved_errno != ERANGE)
+	{
+		char buf_cmp[100];
+		char *buf_cmp_start = buf_cmp;
+		int buf_cmp_len;
+
+		// Skip leading zeros, but keep at least one digit
+		while (buf_sig_digits[0] == '0' && buf_sig_digits[1] != '\0')
+			buf_sig_digits++;
+		if (num64 == 0) // assume all sscanf impl's will parse -0 to 0
+			orig_has_neg = 0; // "-0" is the same as just plain "0"
+
+		snprintf(buf_cmp_start, sizeof(buf_cmp), "%" PRIu64, num64);
+		if (*buf_cmp_start == '-')
+		{
+            return 0;
+		}
+		// No need to skip leading spaces or zeros here.
+
+		buf_cmp_len = strlen(buf_cmp_start);
+		/**
+		 * If the sign is different, or
+		 * some of the digits are different, or
+		 * there is another digit present in the original string
+		 * then we have NOT successfully parsed the value.
+		 */
+		if (strncmp(buf_sig_digits, buf_cmp_start, strlen(buf_cmp_start)) != 0 ||
+			((int)strlen(buf_sig_digits) != buf_cmp_len &&
+			 isdigit((int)buf_sig_digits[buf_cmp_len])
+		    )
+		   )
+		{
+			saved_errno = ERANGE;
+		}
+	}
+
+	// Not all sscanf impl's set the value properly when out of range.
+	// Always do this, even for properly functioning implementations,
+	// since it shouldn't slow things down much.
+	if (saved_errno == ERANGE)
+	{
+		if (orig_has_neg)
+			num64 = 0;
+		else
+			num64 = UINT64_MAX;
+	}
+	*retval = num64;
+	return 0;
+}
+
 #ifndef HAVE_REALLOC
 void* rpl_realloc(void* p, size_t n)
 {
